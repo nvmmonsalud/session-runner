@@ -1,27 +1,32 @@
-# Session Runner 3D 🏂
+# Session Runner 3D — Powder Expedition 🏂
 
-A single-file **Three.js powder-surf runner**. You're a rider carving down an endless snowy ridge at sunset — weave between the rocks, thread the glowing crest rings for bonus points, and hold your line as the speed ramps. One wipeout ends the session.
+A polished single-file **Three.js powder-surf runner**. Ride an endless mountain route, carve around hazards, collect starlight shards to keep your score multiplier alive, and survive worlds that change as your run deepens.
 
-**Play:** carve, dodge, beat your best. 🤙
+**Live:** https://session-runner.vercel.app
 
-## Controls
+## Play
 
 | Input | Action |
 |---|---|
 | `←` / `→` or `A` / `D` | Carve left / right |
-| `Space` | Start / restart after wipeout |
-| Touch drag | Steer (mobile) |
+| `Space` | Start / restart after a wipeout |
+| Touch drag | Steer on mobile |
 
-## Features
+## Expedition systems
 
-- Single `index.html`, zero build — Three.js loaded from CDN (import map, pinned `0.160.0`)
-- **3D scene:** wave-displaced scrolling terrain, low-poly pines, dodecahedron rocks with visibility rims, sun disc + mountain silhouettes, dusk fog + ambient snowfall
-- **Rider physics:** carve lean, terrain-following height, carve snow spray, camera sway + wipeout shake
-- Difficulty ramp: rock density + speed scale with distance
-- Glowing crest rings: +25 pts and a chime
-- Procedural Web Audio (blips + noise crash), gesture-gated
-- High score persisted in `localStorage`
-- Delta-time-capped loop (no teleporting on tab switch)
+- **A real rider:** a stylized back-facing powder surfer with helmet, cyan goggles, puffer jacket, backpack, articulated limbs, animated scarf, boots, and a striped board.
+- **Route shifts per run:** cross the score thresholds to ride through **Twilight Pines**, **Aurora Glacier**, then **Whiteout Storm**. Lighting, fog, snow, terrain, trees, sun, hazards, and accent colors shift with each biome.
+- **Shard flow:** collect rotating starlight shards to extend a timed `FLOW ×N` multiplier (up to ×5), earn score boosts, particles, and a chime.
+- **Persistent expedition ranks:** completed runs are saved locally. Every three wipeouts unlocks the next Expedition rank, increasing the starting speed and obstacle pressure for subsequent runs.
+- **Evolving hazards:** rim-lit boulders start the route; advanced biomes introduce ice spires.
+- **Responsive ride feel:** terrain-following board, carve lean, camera follow, sway, snow spray, ambient snowfall, procedural audio, and wipeout screen shake.
+
+## Technical notes
+
+- One `index.html`; no build step or framework
+- Three.js uses a pinned CDN import map (`three@0.160.0`)
+- Local `localStorage` saves personal best and expedition completion count
+- Delta-time-capped render loop prevents tab-switch physics jumps
 
 ## Run locally
 
@@ -32,8 +37,8 @@ python3 -m http.server 8000
 
 ## Deploy
 
-Static file → any host. On Vercel: import the repo, framework preset **Other**, no build command. Done.
+It is a static site. Import the repository to Vercel using framework preset **Other** and no build command, or deploy directly with `vercel --prod`.
 
 ---
 
-Built by Kimi K3 via Hermes Agent. Cowabunga. 🤙
+Built with GPT-5.6 Terra via Hermes Agent. 🤙
