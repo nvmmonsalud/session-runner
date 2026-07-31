@@ -43,3 +43,41 @@ Date: 2026-07-31. Plan pre-approved by user (NVM). Working dir: /Users/nvmmonsal
 - **Orchestrator re-verification (Step 4), all PASS:** node --check clean on all 7 modules; 9/9 assets HTTP 200; tell-check grep zero matches; integration audit confirmed both core.js hooks (vfx update + hit-stop gate) coexist, rider:land wired rider.js→audio.js, sessionRunnerStory + legacy localStorage keys intact, biome thresholds 0/120/300 intact, touch controls intact.
 - **Browser runtime smoke (orchestrator, beyond spec):** headless Chrome. Attempt 1 (--disable-gpu) failed on WebGL context creation — environmental; exposed secondary uncaught TypeError in vfx.js when WebGL absent (noted as known issue, non-blocking). Attempt 2 (SwiftShader WebGL): PASS — canvas created, renderer running, zero JS errors, menu overlay fully populated (SESSION RUNNER / SPACE TAP TO DROP IN / TWILIGHT PINES).
 - **Phase closed.** STATUS.json written at repo root. All 4 workstreams build-green, 12/12 handoff docs present, zero blockers. Recommended decision: ship-it (after a human playtest). No fix dispatches required — no workstream broke another.
+
+---
+
+# PHASE 2 — Day/Night Cycle + Classic Snowboarding Graphics
+
+Orchestrator: Claude Fable 5 (manager only). Date: 2026-07-31. Plan pre-approved by user (NVM).
+Research: docs/research/day-night-classic-snowboard-style.md (cited techniques below).
+
+## Plan
+
+**Deliverables:** (1) progression-paired day/night cycle integrated with the vfx.js sky/star/sun/aurora system, exposed as `window.Game.dayNight = { phase, time01, update(dt) }`; (2) classic arcade snowboarding look (SSX Tricky-style): saturated high-contrast palettes, backface-shell outlines on obstacles, punchier spray/streaks, arcade HUD polish. Static SPA preserved, three@0.160.0 only, no build step.
+
+**Workstreams + model tiers:**
+- **WS-DN — Day/Night Cycle → Opus 5 (`opus5-game-dev`).** Complex lighting workstream. New js/daynight.js (loads after vfx.js). Sun arc `theta = time01·2π` drives world.js key light color/intensity (dawn/dusk ~0xff9a5a, midday ~0xffe0a0, night ~0xaaccff; intensity linear with sun height, floored); sky dome gradient pairs, star opacity, fog color, hemisphere colors all lerped with time-of-day; aurora gated on darkness factor (not biome alone); glow elements stay readable at night. **Design decision (from research):** hybrid progression-paired cycle — `time01` advances continuously with run distance AND eases toward per-biome anchor windows (Pines = dawn/morning, Glacier = night, Storm = burning dusk). **Readability floor:** hemisphere intensity never below ~0.8 (base 1.25); rim/fill light guarantees silhouette. Hook: `window.Game.vfx.update` already runs per frame — dayNight.update(dt) called from a one-line hook (vfx chain or minimal core emit). Optional small HUD time-of-day indicator via ui.js glue.
+- **WS-CG — Classic Graphics → Sonnet 5 (`sonnet5-game-dev`).** Style workstream. Saturated/brightened biome palettes + track-vs-border contrast in world.js; inverted-hull outlines (BackSide dark shell, scale ~1.04–1.07, one shared material) on rocks/spires/trees — convex primitives so uniform scale is correct (per research); amped spray/streak counts+opacity; arcade HUD polish (score popups, zone banners) in ui.js/css. NO gameplay-number/physics/threshold/collision changes. Must respect WS-DN night factor via `window.Game.dayNight`/GameEvents if present.
+
+**Dispatch mode:** parallel, one message. File-ownership: WS-DN owns js/daynight.js + surgical hooks (vfx.js/core.js/ui.js one-liners + light refs export from world.js if needed); WS-CG owns palette/material/outline edits in world.js/rider.js/css/ui.js. Shared-file collisions resolved by re-read-before-edit rule (phase 1 pattern).
+
+**Preserve (hard):** biome thresholds 0/120/300, Flow ×5, tricks + launch pads, expedition ranks, story (Rin), localStorage keys sessionRunner3dHi/sessionRunner3dRuns/sessionRunnerStory, touch controls, delta-capped loop, script order (vfx after core; new modules after vfx).
+
+**Verification gate (orchestrator re-runs, never trusts):** `node --check --input-type=module < js/*.js` each; serve on 127.0.0.1:8343 + curl every asset 200; tell-check grep (TODO|FIXME|XXX|placeholder|STUB_REPLACE_ME) zero matches; integration audit — dayNight advances + emits, night readable (palette spot-check), thresholds/tricks/story/save keys untouched, no double sky init.
+
+**Audit hooks:** workstreams/daynight/ + workstreams/classic-graphics/ each with HANDOFF.md, BUILD-LOG.md, VERIFICATION.md (verbatim output). Orchestrator updates STATUS.json + closes this phase in the log.
+
+**Success criteria:** all JS syntax-clean; all assets 200; zero tells; visible day/night evolution during a run tied to progression; aurora only in darkness; night gameplay readable; SSX-style saturated look with outlined obstacles; all preserved features intact; static Vercel-deployable.
+
+## Chronology (Phase 2)
+
+- **Spec loaded.** Read index.html + all 7 js modules + README/STATUS/log/handoffs. Confirmed hook point: core.js `window.Game.vfx?.update(dt)`; world.js owns hemi/key/fill lights + biome palettes; vfx.js owns dome/stars/sun-glow/aurora.
+- **Research complete.** docs/research/day-night-classic-snowboard-style.md written — sun-arc/lerp numbers, progression-paired cycle recommendation, inverted-hull outline caveats (convex-only — matches our primitives), SSX palette direction.
+- **Dispatching WS-DN (Opus 5) + WS-CG (Sonnet 5) in parallel.**
+- **Orchestrator session truncated** by the 600s background-task ceiling while both sub-agents ran. On resume: disk audit showed BOTH workstreams' code fully landed (js/daynight.js + hooks; palette/outline/spray/HUD restyle) but neither had written its workstream docs. (Parent process initially reported WS-CG as never-dispatched — the on-disk diff disproved that; no re-dispatch needed, avoiding a clobber of verified code.)
+- **WS-DN re-verified (orchestrator):** sim.mjs harness PASS — time01 advances with progression, anchors converge (Pines 0.270 dawn / Glacier 0.900 night / Storm 0.740 dusk), readability floors hold over full cycle (hemi ≥ 0.900, fill brightens 0.35→0.68 at night), aurora gate true only in darkness, star clamp at .85. Hook audit: daynight.js script tag last; single `window.Game.dayNight?.update(dt)` in vfx.js; vfx exports paintSky/skyGradientFor/starMaterial/sunGlow handles; world.js lights/sunMesh getters; no double sky init (applyDomeColors delegates to paintSky). No per-frame allocations (pre-baked keyframe Colors, scratch objects, 4-frame dome repaint throttle).
+- **WS-CG re-verified (orchestrator):** full diff audit — 3 biome palettes saturated (old→new table in workstreams/classic-graphics/HANDOFF.md), terrain shade spread .56/.134, shared-material inverted-hull shells on rocks (1.065)/spires (1.06)/trees (1.05–1.07) + instanced detail-rock shells, spray/snow/trail/streak punch (pool sizes unchanged), pooled score popups + zone/combo bumps. Gameplay numbers verified untouched: thresholds 0/120/300, collision radii (s+.35 / .92), Flow ×5, save keys, core.js/story.js/audio.js clean.
+- **Full gate re-run (orchestrator):** syntax 8/8 OK (stdin form — --experimental-default-type=module broken on Node v24); 10/10 assets HTTP 200 on 127.0.0.1:8343; tell grep zero matches.
+- **Headless Chrome boot smoke (SwiftShader WebGL):** PASS — merged build boots, menu populated, #dnPhase live ("◔ DAWN" in dawn tint = daynight.js ran to completion), zero page JS errors.
+- **Docs completed:** workstreams/daynight/{HANDOFF,BUILD-LOG,VERIFICATION}.md + workstreams/classic-graphics/{HANDOFF,BUILD-LOG,VERIFICATION}.md written by orchestrator from verified state (truncation flagged honestly in each BUILD-LOG). STATUS.json updated to phase day-night-classic-graphics.
+- **Phase 2 closed.** Both workstreams build-green, zero blockers, no fix dispatches needed. Recommended decision: ship-it after a manual playtest of the full dawn→night→dusk run.

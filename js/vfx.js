@@ -68,10 +68,11 @@ skyDome.renderOrder = -20;
 scene.add(skyDome);
 
 const _skyTop = new THREE.Color(), _skyHorizon = new THREE.Color(), _skyMix = new THREE.Color();
-function applyDomeColors(index) {
-  const g = SKY_GRADIENTS[index] || SKY_GRADIENTS[0];
-  _skyTop.set(g.top);
-  _skyHorizon.set(g.horizon);
+// Paints the dome from an explicit color pair — js/daynight.js drives this with its
+// time-of-day blend; applyDomeColors() is the biome-only entry point on top of it.
+function paintSky(topColor, horizonColor) {
+  _skyTop.copy(topColor);
+  _skyHorizon.copy(horizonColor);
   const pos = skyGeo.attributes.position;
   const col = skyGeo.attributes.color;
   for (let i = 0; i < pos.count; i++) {
@@ -80,6 +81,11 @@ function applyDomeColors(index) {
     col.setXYZ(i, _skyMix.r, _skyMix.g, _skyMix.b);
   }
   col.needsUpdate = true;
+}
+const _biomeTop = new THREE.Color(), _biomeHorizon = new THREE.Color();
+function applyDomeColors(index) {
+  const g = SKY_GRADIENTS[index] || SKY_GRADIENTS[0];
+  paintSky(_biomeTop.set(g.top), _biomeHorizon.set(g.horizon));
 }
 applyDomeColors(0);
 
@@ -159,9 +165,14 @@ const auroraRibbons = [
 ];
 
 function updateAurora(t) {
-  const active = world.biomeIndex === 1;
+  // Ribbons need darkness: gated on the biome AND js/daynight.js's night factor, so
+  // they can never wash out over a bright daylight sky.
+  const dn = window.Game.dayNight;
+  const dark = dn ? dn.nightFactor : 1;
+  const active = world.biomeIndex === 1 && dark > .5;
+  const darkFade = THREE.MathUtils.smoothstep(dark, .5, .85);
   for (const mesh of auroraRibbons) {
-    const target = active ? mesh.userData.maxOpacity : 0;
+    const target = active ? mesh.userData.maxOpacity * darkFade : 0;
     mesh.material.opacity += (target - mesh.material.opacity) * .05;
     if (mesh.material.opacity < .008 && !active) { mesh.visible = false; continue; }
     mesh.visible = true;
@@ -188,7 +199,7 @@ const STREAK_N = 26;
 const streakPositions = new Float32Array(STREAK_N * 2 * 3);
 const streakGeo = new THREE.BufferGeometry();
 streakGeo.setAttribute('position', new THREE.BufferAttribute(streakPositions, 3));
-const streakMat = new THREE.LineBasicMaterial({ color: 0xdff6ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+const streakMat = new THREE.LineBasicMaterial({ color: 0xf3feff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
 const streaks = new THREE.LineSegments(streakGeo, streakMat);
 streaks.frustumCulled = false;
 camera.add(streaks);
@@ -199,12 +210,14 @@ for (let i = 0; i < STREAK_N; i++) {
     ang: Math.random() * Math.PI * 2,
     rad: 3.5 + Math.random() * 8.5,
     z: -40 - Math.random() * 140,
-    len: 5 + Math.random() * 9,
+    len: 7 + Math.random() * 12,
     spd: .6 + Math.random() * .6
   });
 }
+// Classic arcade top-speed punch: streaks kick in earlier (.45 vs .55) and reach a
+// bolder max opacity (.78 vs .5) so flat-out sections feel genuinely fast.
 function updateStreaks(dt, speedFactor) {
-  const target = speedFactor > .55 ? (speedFactor - .55) / .45 * .5 : 0;
+  const target = speedFactor > .45 ? (speedFactor - .45) / .55 * .78 : 0;
   streakMat.opacity += (target - streakMat.opacity) * Math.min(1, dt * 6);
   const pos = streakGeo.attributes.position;
   for (let i = 0; i < STREAK_N; i++) {
@@ -264,6 +277,7 @@ window.GameEvents.on('biome:change', ({ index, biome }) => {
 let tAccum = 0;
 function update(dt) {
   tAccum += dt;
+  window.Game.dayNight?.update(dt);
   const state = window.Game.state;
   const speed = state.speed || 16;
   const speedFactor = THREE.MathUtils.clamp((speed - 16) / 40, 0, 1);
@@ -273,8 +287,10 @@ function update(dt) {
   camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 3.2);
   camera.updateProjectionMatrix();
 
-  // Stars twinkle
-  starMat.opacity += (starGoal - starMat.opacity) * Math.min(1, dt * 2);
+  // Stars twinkle — per-biome target scaled by time-of-day darkness (0 by day).
+  const dn = window.Game.dayNight;
+  const starAim = dn ? Math.min(.85, starGoal * dn.starScale) : starGoal;
+  starMat.opacity += (starAim - starMat.opacity) * Math.min(1, dt * 2);
   starMat.size = 1.7 + Math.sin(tAccum * 2.2) * .35;
 
   updateAurora(tAccum);
@@ -283,4 +299,12 @@ function update(dt) {
   applyShakePolish(tAccum);
 }
 
-window.Game.vfx = { update, makeGlowSprite, attachGlow };
+window.Game.vfx = {
+  update, makeGlowSprite, attachGlow,
+  // Sky/star/sun handles consumed by js/daynight.js (loaded after this file).
+  paintSky,
+  skyGradientFor: (index) => SKY_GRADIENTS[index] || SKY_GRADIENTS[0],
+  get starMaterial() { return starMat; },
+  get sunGlowGroup() { return sunGlowGroup; },
+  get sunGlowSprites() { return sunGlowSprites; }
+};

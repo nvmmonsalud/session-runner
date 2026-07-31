@@ -248,6 +248,8 @@ function update(dt) {
 function updateTrailAndCarve(dt, st, world, ry) {
   const dz = st.speed * dt;
 
+  // Arcade board trail: brighter peak opacity + a speed-scaled fan width so a hard
+  // carve throws a bolder, wider glowing wake (cosmetic only — pool size/timing unchanged).
   trailAccum += dt;
   if (!st.airborne && st.state === st.STATE.PLAYING && trailAccum > .04) {
     trailAccum = 0;
@@ -255,7 +257,8 @@ function updateTrailAndCarve(dt, st, world, ry) {
     t.mesh.position.set(st.player.x, ry + .06, .9);
     t.mesh.rotation.z = board.rotation.y;
     t.mesh.material.color.set(trailColor);
-    t.mesh.material.opacity = .5;
+    t.mesh.material.opacity = .72;
+    t.mesh.scale.set(1 + Math.min(1.1, Math.abs(st.player.vx) * .035), 1, 1);
     t.life = t.maxLife;
     t.mesh.visible = true;
   }
@@ -264,7 +267,7 @@ function updateTrailAndCarve(dt, st, world, ry) {
       t.life -= dt;
       t.mesh.position.z += dz;
       t.mesh.position.y = world.groundH(t.mesh.position.x, t.mesh.position.z) + .06;
-      t.mesh.material.opacity = Math.max(0, t.life / t.maxLife) * .5;
+      t.mesh.material.opacity = Math.max(0, t.life / t.maxLife) * .72;
       if (t.life <= 0) t.mesh.visible = false;
     }
   }
@@ -276,7 +279,7 @@ function updateTrailAndCarve(dt, st, world, ry) {
     c.mesh.position.set(st.player.x, ry + .015, .3);
     c.mesh.rotation.z = -st.player.vx * .05;
     c.mesh.material.color.set(carveColor);
-    c.mesh.material.opacity = .3;
+    c.mesh.material.opacity = .42;
     c.life = c.maxLife;
     c.mesh.visible = true;
   }
@@ -285,7 +288,7 @@ function updateTrailAndCarve(dt, st, world, ry) {
       c.life -= dt;
       c.mesh.position.z += dz;
       c.mesh.position.y = world.groundH(c.mesh.position.x, c.mesh.position.z) + .015;
-      c.mesh.material.opacity = Math.max(0, c.life / c.maxLife) * .3;
+      c.mesh.material.opacity = Math.max(0, c.life / c.maxLife) * .42;
       if (c.life <= 0) c.mesh.visible = false;
     }
   }

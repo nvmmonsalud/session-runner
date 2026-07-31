@@ -4,10 +4,14 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; user-sel
 #hud { position: fixed; inset: 0; pointer-events: none; color: white; text-shadow: 0 2px 16px rgba(0,0,0,.45); }
 #score { position: absolute; top: 17px; left: 20px; font-size: 36px; line-height: .9; font-weight: 900; letter-spacing: -.04em; }
 #best { position: absolute; top: 54px; left: 22px; color: rgba(255,255,255,.62); font-size: 11px; font-weight: 800; letter-spacing: .12em; }
-#combo { position: absolute; top: 75px; left: 22px; color: #9ef7e5; font-size: 13px; font-weight: 900; letter-spacing: .08em; opacity: 0; transition: opacity .18s; }
+#combo { position: absolute; top: 75px; left: 22px; color: #9ef7e5; font-size: 13px; font-weight: 900; letter-spacing: .08em; opacity: 0; transition: opacity .18s; text-shadow: 0 2px 16px rgba(0,0,0,.45), 0 0 10px currentColor; }
+#combo.bump { animation: comboBump .34s cubic-bezier(.2,1.4,.4,1); }
+@keyframes comboBump { 0% { transform: scale(.78); } 55% { transform: scale(1.32); } 100% { transform: scale(1); } }
 #trick { position: absolute; left: 50%; bottom: 54px; transform: translateX(-50%) translateY(8px); color: #ffe0a4; font-size: clamp(15px,2.7vw,23px); font-weight: 950; letter-spacing: .08em; opacity: 0; transition: opacity .18s, transform .18s; white-space: nowrap; }
 #trick.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-#zone { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); padding: 8px 14px; border: 1px solid rgba(255,255,255,.22); border-radius: 99px; background: rgba(8,8,25,.26); backdrop-filter: blur(7px); font-size: 11px; font-weight: 900; letter-spacing: .15em; white-space: nowrap; }
+#zone { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); padding: 8px 16px; border: 1.5px solid rgba(255,255,255,.3); border-radius: 99px; background: rgba(8,8,25,.32); backdrop-filter: blur(7px); font-size: 11px; font-weight: 900; letter-spacing: .15em; white-space: nowrap; box-shadow: 0 4px 22px rgba(0,0,0,.4), 0 0 16px currentColor; }
+#zone.bump { animation: zoneBump .42s cubic-bezier(.2,1.4,.4,1); }
+@keyframes zoneBump { 0% { transform: translateX(-50%) scale(.82); } 45% { transform: translateX(-50%) scale(1.16); } 100% { transform: translateX(-50%) scale(1); } }
 #meta { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,.62); font-size: 10px; font-weight: 750; letter-spacing: .09em; white-space: nowrap; }
 #speedwrap { position: absolute; top: 23px; right: 20px; width: 130px; height: 10px; border: 1px solid rgba(255,255,255,.28); border-radius: 99px; overflow: hidden; background: rgba(0,0,0,.18); }
 #speedbar { height: 100%; width: 0%; border-radius: inherit; background: #91e8ff; transition: width .15s, background .3s; }
@@ -38,3 +42,15 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; user-sel
 
 /* --- graphics/VFX (js/vfx.js) --- */
 #vfxVignette { position: fixed; inset: 0; pointer-events: none; z-index: 4; opacity: .24; transition: opacity .2s ease-out; background: radial-gradient(ellipse at 50% 55%, rgba(0,0,0,0) 42%, rgba(6,3,16,.32) 78%, rgba(4,2,12,.62) 100%); }
+
+/* --- classic arcade HUD polish (js/ui.js) --- */
+#scorePopups { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.scorePopup { position: absolute; transform: translate(-50%, -50%); font-size: clamp(16px, 3.2vw, 27px); font-weight: 950; letter-spacing: .02em; opacity: 0; white-space: nowrap; text-shadow: 0 3px 14px rgba(0,0,0,.55), 0 0 16px currentColor; }
+.scorePopup.pop { animation: scorePopupFloat .95s ease-out forwards; }
+@keyframes scorePopupFloat {
+  0% { opacity: 0; transform: translate(-50%, -40%) scale(.65); }
+  16% { opacity: 1; transform: translate(-50%, -58%) scale(1.12); }
+  70% { opacity: 1; transform: translate(-50%, -92%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -122%) scale(.92); }
+}
+@media (max-width: 560px) { .scorePopup { font-size: clamp(13px, 4vw, 19px); } }

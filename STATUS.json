@@ -1,46 +1,37 @@
 {
-  "phase": "full-game-overhaul",
-  "completed_at": "2026-07-31T14:00:00+09:00",
+  "phase": "day-night-classic-graphics",
+  "completed_at": "2026-07-31T14:45:00+09:00",
+  "previous_phase": "full-game-overhaul (see ORCHESTRATION-LOG.md phase 1)",
   "workstreams": {
-    "ws0-refactor": {
+    "ws-dn-day-night": {
       "status": "build-green",
-      "agent_model": "sonnet-5",
-      "handoff_docs_present": ["workstreams/refactor/HANDOFF.md", "workstreams/refactor/BUILD-LOG.md", "workstreams/refactor/VERIFICATION.md"],
-      "notes": "Single-file index.html split into shell + css/style.css + 6 js modules; GameEvents bus + window.Game API; behavior-preserving. Relocated ORCHESTRATION-LOG.md without authorization (orchestrator restored it to root)."
+      "agent_model": "opus-5",
+      "handoff_docs_present": ["workstreams/daynight/HANDOFF.md", "workstreams/daynight/BUILD-LOG.md", "workstreams/daynight/VERIFICATION.md", "workstreams/daynight/sim.mjs"],
+      "notes": "New js/daynight.js (378 lines): hybrid progression-paired cycle (time01 advances with run distance, eases to per-biome anchors: Pines dawn 0.27 / Glacier night 0.90 / Storm dusk 0.74); sun arc drives key light color/intensity, sky-dome keyframe gradients via vfx.paintSky (throttled), star opacity, fog/background, hemisphere + fill lerps; aurora gated on nightFactor > .5; readability floor hemi >= 0.9 (HEMI_MIN 0.8), fill brightens +95% at night; window.Game.dayNight API incl. nightFactor/starScale; #dnPhase HUD indicator. Agent session hit the 600s background ceiling after code + sim.mjs landed; docs completed by orchestrator from verified disk state."
     },
-    "ws1-storyline": {
+    "ws-cg-classic-graphics": {
       "status": "build-green",
       "agent_model": "sonnet-5",
-      "handoff_docs_present": ["workstreams/storyline/HANDOFF.md", "workstreams/storyline/BUILD-LOG.md", "workstreams/storyline/VERIFICATION.md"],
-      "notes": "Rin protagonist, prologue, 3 acts mapped to biomes, zone story cards, rate-limited flavor lines, named tricks, epilogue + run stats, new localStorage key sessionRunnerStory."
-    },
-    "ws2-graphics-vfx": {
-      "status": "build-green",
-      "agent_model": "sonnet-5",
-      "handoff_docs_present": ["workstreams/graphics/HANDOFF.md", "workstreams/graphics/BUILD-LOG.md", "workstreams/graphics/VERIFICATION.md"],
-      "notes": "New js/vfx.js: sky dome, stars, sun glow, aurora ribbons, speed streaks, FOV kick, vignette, shake polish; world.js terrain vertex colors + instanced rocks + per-biome snow; rider.js emissive stripe, springy scarf, board trail, carve tracks. All procedural. Minor: ice-spire glow color fixed at spawn, not live-updated on mid-flight biome change."
-    },
-    "ws3-audio-juice": {
-      "status": "build-green",
-      "agent_model": "sonnet-5",
-      "handoff_docs_present": ["workstreams/audio/HANDOFF.md", "workstreams/audio/BUILD-LOG.md", "workstreams/audio/VERIFICATION.md"],
-      "notes": "Procedural music bed (speed/biome intensity), wind whoosh, 80ms hit-stop + thud, landing squash, biome stingers, UI blips, synth callout voice. Surgical hooks only in core.js/rider.js; blip/crash preserved."
+      "handoff_docs_present": ["workstreams/classic-graphics/HANDOFF.md", "workstreams/classic-graphics/BUILD-LOG.md", "workstreams/classic-graphics/VERIFICATION.md"],
+      "notes": "SSX-style pass: all 3 biome palettes saturated/brightened (full old->new table in HANDOFF), terrain shade spread widened for track readability, inverted-hull outline shells (one shared BackSide material 0x0a0714) on rocks/spires/trees + instanced detail-rock shells, punchier spray/snow/trail/carve/streaks (pool sizes unchanged), pooled arcade score popups + zone/combo bump animations. Zero gameplay-number changes verified. Agent session hit the same 600s ceiling after code landed (parent initially believed WS-CG never ran — on-disk diff proves code scope completed); docs completed by orchestrator."
     }
   },
   "orchestrator_reverified": {
-    "syntax_check": "PASS — node --check clean on all 7 js modules",
-    "asset_serving": "PASS — 9/9 assets HTTP 200 on 127.0.0.1:8341",
-    "tell_check": "PASS — zero TODO/FIXME/XXX/placeholder/not-implemented matches in index.html, css/, js/",
-    "integration_audit": "PASS — script order correct (vfx.js after core.js), core.js carries both vfx update hook and hit-stop gate, rider.js carries rider:land emit + VFX upgrades, sessionRunnerStory persisted, legacy localStorage keys intact, biome thresholds 0/120/300 intact, touch controls intact",
-    "browser_runtime_smoke": "PASS — headless Chrome (SwiftShader WebGL): canvas created, renderer running, zero JS errors, menu overlay populated (title/CTA/zone). First attempt with --disable-gpu failed on WebGL context creation (environmental, not a code defect)."
+    "syntax_check": "PASS — node --check --input-type=module clean on all 8 js modules (incl. daynight.js)",
+    "asset_serving": "PASS — 10/10 assets HTTP 200 on 127.0.0.1:8343",
+    "tell_check": "PASS — zero TODO/FIXME/XXX/placeholder/STUB_REPLACE_ME matches in index.html, css/, js/",
+    "daynight_logic_harness": "PASS — node workstreams/daynight/sim.mjs: cycle advances with progression, all 3 biome anchors converge, readability floors hold over full cycle (hemi >= 0.900, fill brightens at night), aurora gate true only in darkness, star clamp correct",
+    "browser_runtime_smoke": "PASS — headless Chrome (SwiftShader WebGL): boots clean with both workstreams merged, menu overlay populated, #dnPhase indicator live ('◔ DAWN', dawn tint), zero page JS errors",
+    "integration_audit": "PASS — script order world→rider→audio→ui→story→core→vfx→daynight; single dayNight update hook in vfx.js; no double sky init (applyDomeColors delegates to paintSky); biome thresholds 0/120/300, collision radii, Flow x5, tricks, story, all 3 localStorage keys, touch controls, delta-capped loop all intact; core.js/story.js/audio.js untouched this phase"
   },
   "blockers": [],
   "known_issues": [
-    "No interactive gameplay input test performed (headless smoke covers boot/render only); manual play recommended before production deploy.",
-    "If WebGL is unavailable in a client browser, vfx.js throws a secondary uncaught TypeError after core.js's primary WebGL failure — cosmetic noise, game is unavailable in that case regardless.",
-    "Ice-spire glow color fixed at spawn time (cosmetic, rare)."
+    "No interactive gameplay input test (headless smoke covers boot/render only); manual playtest recommended before deploy — especially a full run to watch the dawn→night→dusk progression across all 3 biomes.",
+    "sim.mjs mirrors daynight.js constants by copy; must be updated in step if tuning changes.",
+    "Outline shell thickness is scale-proportional (slightly thinner on distant small trees) — cosmetic.",
+    "Both sub-agent sessions were truncated by the 600s background-task ceiling before writing their own docs; docs reconstructed by orchestrator from verified on-disk state (flagged in each BUILD-LOG)."
   ],
   "recommended_decision": "ship-it",
-  "next_phase_recommendation": "Manual playtest (drop-in, trick, shard, all 3 biome transitions, wipeout, refresh persistence check), then deploy to Vercel. Optional next phase: difficulty curve tuning + a WebGL-unavailable fallback message.",
-  "notes": "All implementation by Sonnet 5 sub-agents; Fable 5 orchestrated and independently re-verified. Scope wall held: no npm, no new CDN deps, no build step, no external assets, no git commands, static SPA preserved."
+  "next_phase_recommendation": "Manual playtest (full run: verify dawn start, night fall into Aurora Glacier with aurora + stars, burning-dusk Whiteout Storm, night readability, outline look, popup juice), then deploy to Vercel.",
+  "notes": "Fable 5 orchestrated; WS-DN implemented by Opus 5, WS-CG by Sonnet 5; orchestrator wrote zero game code and independently re-verified everything. Scope wall held: no npm, no new CDN deps beyond three@0.160.0, no build step, no external assets, no git commands, static SPA preserved."
 }

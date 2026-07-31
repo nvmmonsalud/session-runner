@@ -8,22 +8,27 @@ window.Game = window.Game || {};
 
 const LANE = 14;
 
+// Classic arcade (SSX Tricky / 1080°-era) palette pass: each biome pushed to a bold,
+// saturated, high-contrast theme while keeping its original hue identity (purple dusk
+// pines / teal aurora glacier / violet storm) — see docs/research/day-night-classic-
+// snowboard-style.md §B. Base colors intentionally bright so day/night dimming (WS-DN,
+// window.Game.dayNight) still leaves the track readable at night.
 const BIOMES = [
-  { name: 'TWILIGHT PINES', icon: '✦', at: 0, sky: 0x1b1239, fog: 0x3d2b64, snow: 0xdde9ff, terrain: 0xbdccea, tree: 0x183e47, trunk: 0x4b3540, sun: 0xffd699, accent: 0x9ef7e5, rock: 0xbac5dd, threshold: 0 },
-  { name: 'AURORA GLACIER', icon: '✦', at: 120, sky: 0x06253d, fog: 0x145a70, snow: 0xc5fcff, terrain: 0x7fcfd6, tree: 0x11546a, trunk: 0x173a5a, sun: 0x8fffdf, accent: 0x8dfff4, rock: 0xa4eaff, threshold: 120 },
-  { name: 'WHITEOUT STORM', icon: '⚡', at: 300, sky: 0x27142f, fog: 0x7d6f9b, snow: 0xffffff, terrain: 0xdde1ef, tree: 0x4f5277, trunk: 0x263046, sun: 0xff9fce, accent: 0xffd0ef, rock: 0xf0eaff, threshold: 300 }
+  { name: 'TWILIGHT PINES', icon: '✦', at: 0, sky: 0x180a3d, fog: 0x4a2c85, snow: 0xe8f0ff, terrain: 0xaec3f5, tree: 0x0f4a52, trunk: 0x5c2f45, sun: 0xffc266, accent: 0x6dffe0, rock: 0x9fb3e0, threshold: 0 },
+  { name: 'AURORA GLACIER', icon: '✦', at: 120, sky: 0x042846, fog: 0x0f7a95, snow: 0xd4feff, terrain: 0x4de0e8, tree: 0x0a6480, trunk: 0x123f66, sun: 0x6bffcf, accent: 0x5dfff0, rock: 0x7fe0ff, threshold: 120 },
+  { name: 'WHITEOUT STORM', icon: '⚡', at: 300, sky: 0x2e1040, fog: 0x8a6fc2, snow: 0xfbfcff, terrain: 0xd8d4f5, tree: 0x4a4a8f, trunk: 0x212952, sun: 0xff6fc0, accent: 0xff9fe0, rock: 0xece0ff, threshold: 300 }
 ];
 let biomeIndex = 0, activeBiome = BIOMES[0];
 
 let scene, hemi, key, fill, sun, mountainMats;
 const TER_W = 112, TER_L = 430;
 let terGeo, terBase, terrainMat, terrain;
-let rockGeo, rockMat, rockRimMat, treeMat, trunkMat, shardGeo, shardMat, padGeo, padMat, padStripeMat;
+let rockGeo, rockMat, outlineMat, treeMat, trunkMat, shardGeo, shardMat, padGeo, padMat, padStripeMat;
 const obstacles = [], decor = [], shards = [], pads = [];
 
 const terLowColor = new THREE.Color(), terHighColor = new THREE.Color();
 const DETAIL_N = 40;
-let detailMesh, detailMat;
+let detailMesh, detailMat, detailShellMesh;
 const detailData = [];
 const _detailDummy = new THREE.Object3D();
 
@@ -40,23 +45,31 @@ function groundH(x, z) {
 }
 
 function computeTerrainShades() {
+  // Wider low/high spread than a realistic snowfield would use — classic arcade
+  // "readable track" look: valleys/borders read darker, carved ridges/peaks pop
+  // brighter and accent-tinted so the terrain silhouette reads at speed.
   const base = new THREE.Color(activeBiome.terrain);
   const accent = new THREE.Color(activeBiome.accent);
-  terLowColor.copy(base).multiplyScalar(.68);
-  terHighColor.copy(base).lerp(accent, .22).multiplyScalar(1.18);
+  terLowColor.copy(base).multiplyScalar(.56);
+  terHighColor.copy(base).lerp(accent, .3).multiplyScalar(1.34);
 }
 
 function updateDetailRocks() {
   if (!detailMesh) return;
   for (let i = 0; i < DETAIL_N; i++) {
     const d = detailData[i];
-    _detailDummy.position.set(d.x, groundH(d.x, d.wz) - .1, d.wz);
+    const y = groundH(d.x, d.wz) - .1;
+    _detailDummy.position.set(d.x, y, d.wz);
     _detailDummy.scale.setScalar(d.s);
     _detailDummy.rotation.set(d.rx, d.ry, d.rz);
     _detailDummy.updateMatrix();
     detailMesh.setMatrixAt(i, _detailDummy.matrix);
+    _detailDummy.scale.setScalar(d.s * 1.07);
+    _detailDummy.updateMatrix();
+    detailShellMesh.setMatrixAt(i, _detailDummy.matrix);
   }
   detailMesh.instanceMatrix.needsUpdate = true;
+  detailShellMesh.instanceMatrix.needsUpdate = true;
 }
 
 function updateTerrain() {
@@ -78,12 +91,17 @@ function updateTerrain() {
   updateDetailRocks();
 }
 
+// Bold arcade silhouettes: inverted-hull outline shells (backface-scaled duplicate
+// mesh, dark flat material) on every obstacle/tree part. Convex primitives (dodecahedra,
+// cones) outline correctly under uniform scale. All shells share ONE material instance
+// (outlineMat) — no per-mesh material allocation. See docs/research/day-night-classic-
+// snowboard-style.md §B "Outline / cel look without postprocessing".
 function makeRock() {
-  const g = new THREE.Group(), m = new THREE.Mesh(rockGeo, rockMat), rim = new THREE.Mesh(rockGeo, rockRimMat), s = .8 + Math.random() * 1.25;
+  const g = new THREE.Group(), m = new THREE.Mesh(rockGeo, rockMat), shell = new THREE.Mesh(rockGeo, outlineMat), s = .8 + Math.random() * 1.25;
   m.scale.set(s, s * (.7 + Math.random() * .5), s);
   m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
-  rim.scale.setScalar(1.055);
-  m.add(rim);
+  shell.scale.setScalar(1.065);
+  m.add(shell);
   g.add(m);
   return { g, r: s + .35 };
 }
@@ -91,6 +109,9 @@ function makeRock() {
 function makeIceSpire() {
   const g = new THREE.Group(), m = new THREE.Mesh(new THREE.ConeGeometry(.8, 2.9, 5), shardMat);
   m.rotation.z = (Math.random() - .5) * .2;
+  const shell = new THREE.Mesh(m.geometry, outlineMat);
+  shell.scale.setScalar(1.06);
+  m.add(shell);
   g.add(m);
   window.Game.vfx?.attachGlow(g, activeBiome.accent, 2.4, 1.6, .5);
   return { g, r: .92 };
@@ -99,11 +120,17 @@ function makeIceSpire() {
 function makeTree() {
   const g = new THREE.Group(), trunk = new THREE.Mesh(new THREE.CylinderGeometry(.16, .25, 1.25, 5), trunkMat);
   trunk.position.y = .62;
+  const trunkShell = new THREE.Mesh(trunk.geometry, outlineMat);
+  trunkShell.scale.setScalar(1.07);
+  trunk.add(trunkShell);
   g.add(trunk);
   const n = 2 + Math.floor(Math.random() * 2);
   for (let i = 0; i < n; i++) {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(1.5 - i * .35, 1.7, 6), treeMat);
     cone.position.y = 1.45 + i * 1.03;
+    const coneShell = new THREE.Mesh(cone.geometry, outlineMat);
+    coneShell.scale.setScalar(1.05);
+    cone.add(coneShell);
     g.add(cone);
   }
   const s = .8 + Math.random() * 1;
@@ -152,17 +179,19 @@ function spawnPad() {
   pads.push({ mesh: g, x, z: -205, used: false });
 }
 
+// Punchier arcade spray: wider fan (.5->.7 jitter), snappier kick-off velocity and a
+// touch more hang time so carve/landing bursts read as big SSX-style powder throws.
 function emitSpray(x, y, z, n, spread, up) {
   for (let i = 0; i < n; i++) {
     const j = sprayIdx;
     sprayIdx = (sprayIdx + 1) % SPRAY_N;
-    sprayPos[j * 3] = x + (Math.random() - .5) * .5;
+    sprayPos[j * 3] = x + (Math.random() - .5) * .7;
     sprayPos[j * 3 + 1] = y;
-    sprayPos[j * 3 + 2] = z + (Math.random() - .5) * .5;
-    sprayVel[j * 3] = (Math.random() - .5) * spread;
-    sprayVel[j * 3 + 1] = Math.random() * up;
-    sprayVel[j * 3 + 2] = 2 + Math.random() * 3;
-    sprayLife[j] = .5 + Math.random() * .45;
+    sprayPos[j * 3 + 2] = z + (Math.random() - .5) * .7;
+    sprayVel[j * 3] = (Math.random() - .5) * spread * 1.25;
+    sprayVel[j * 3 + 1] = up * .35 + Math.random() * up;
+    sprayVel[j * 3 + 2] = 2.6 + Math.random() * 3.6;
+    sprayLife[j] = .55 + Math.random() * .5;
   }
 }
 
@@ -186,8 +215,8 @@ function updateSnow(dt, isPlaying, speed) {
     }
   }
   snowGeo.attributes.position.needsUpdate = true;
-  if (biomeIndex === 1) snowMat.size = .16 + Math.sin(snowTime * 3.4) * .045;
-  else if (snowMat.size !== .16) snowMat.size = .16;
+  if (biomeIndex === 1) snowMat.size = .19 + Math.sin(snowTime * 3.4) * .05;
+  else if (snowMat.size !== .19) snowMat.size = .19;
 }
 
 function updateSpray(dt) {
@@ -262,9 +291,17 @@ function init(sceneRef) {
   scene.add(terrain);
   computeTerrainShades();
 
+  // Shared inverted-hull outline material — ONE instance reused by every rock/spire/tree
+  // shell (world.js §B outline pass). Dark near-black with a faint cool tint so it never
+  // reads as pure crushed-black against the bright night skies.
+  outlineMat = new THREE.MeshBasicMaterial({ color: 0x0a0714, side: THREE.BackSide, fog: true });
+
   detailMat = new THREE.MeshStandardMaterial({ color: activeBiome.rock, flatShading: true, roughness: 1 });
-  detailMesh = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.34, 0), detailMat, DETAIL_N);
+  const detailGeo = new THREE.DodecahedronGeometry(.34, 0);
+  detailMesh = new THREE.InstancedMesh(detailGeo, detailMat, DETAIL_N);
   detailMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  detailShellMesh = new THREE.InstancedMesh(detailGeo, outlineMat, DETAIL_N);
+  detailShellMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   for (let i = 0; i < DETAIL_N; i++) {
     const x = (Math.random() * 2 - 1) * (TER_W * .42);
     const localY = (Math.random() * 2 - 1) * (TER_L * .48);
@@ -274,10 +311,10 @@ function init(sceneRef) {
     });
   }
   scene.add(detailMesh);
+  scene.add(detailShellMesh);
 
   rockGeo = new THREE.DodecahedronGeometry(1, 0);
   rockMat = new THREE.MeshStandardMaterial({ color: activeBiome.rock, flatShading: true, roughness: .9 });
-  rockRimMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: .2 });
   treeMat = new THREE.MeshStandardMaterial({ color: activeBiome.tree, flatShading: true, roughness: 1 });
   trunkMat = new THREE.MeshStandardMaterial({ color: activeBiome.trunk, flatShading: true });
   shardGeo = new THREE.OctahedronGeometry(.6, 0);
@@ -296,7 +333,7 @@ function init(sceneRef) {
   }
   snowGeo = new THREE.BufferGeometry();
   snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
-  snowMat = new THREE.PointsMaterial({ color: activeBiome.snow, size: .16, transparent: true, opacity: .75 });
+  snowMat = new THREE.PointsMaterial({ color: activeBiome.snow, size: .19, transparent: true, opacity: .86 });
   scene.add(new THREE.Points(snowGeo, snowMat));
 
   sprayPos = new Float32Array(SPRAY_N * 3).fill(-999);
@@ -304,7 +341,7 @@ function init(sceneRef) {
   sprayLife = new Float32Array(SPRAY_N);
   sprayGeo = new THREE.BufferGeometry();
   sprayGeo.setAttribute('position', new THREE.BufferAttribute(sprayPos, 3));
-  scene.add(new THREE.Points(sprayGeo, new THREE.PointsMaterial({ color: 0xf8fdff, size: .32, transparent: true, opacity: .9 })));
+  scene.add(new THREE.Points(sprayGeo, new THREE.PointsMaterial({ color: 0xffffff, size: .42, transparent: true, opacity: .96 })));
 
   window.Game.world.biomeIndex = biomeIndex;
   window.Game.world.activeBiome = activeBiome;
@@ -317,5 +354,9 @@ window.Game.world = {
   init, groundH, updateTerrain, applyBiome,
   spawnObstacle, spawnDecor, spawnShard, spawnPad,
   emitSpray, updateSnow, updateSpray,
-  get sunPosition() { return sun.position; }
+  get sunPosition() { return sun.position; },
+  // Surgical handles for js/daynight.js — it modulates these per frame on top of
+  // whatever palette applyBiome() installed.
+  get lights() { return { hemi, key, fill }; },
+  get sunMesh() { return sun; }
 };

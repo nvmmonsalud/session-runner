@@ -32,14 +32,24 @@ function setSpeedbar(pct, color) {
   speedEl.style.background = color;
 }
 
+// Arcade "bump" punch: retrigger a CSS keyframe by removing + forcing reflow + re-adding
+// the class — classic technique for restarting an animation on a reused DOM element.
+function bump(el) {
+  el.classList.remove('bump');
+  void el.offsetWidth;
+  el.classList.add('bump');
+}
+
 function setZone(text, color) {
   zoneEl.textContent = text;
   zoneEl.style.color = color;
+  bump(zoneEl);
 }
 
 function setCombo(combo) {
   comboEl.textContent = 'FLOW ×' + combo;
   comboEl.style.opacity = 1;
+  bump(comboEl);
 }
 
 function hideCombo() { comboEl.style.opacity = 0; }
@@ -95,8 +105,50 @@ function setEpilogue(html) {
   epilogueEl.innerHTML = html || '';
 }
 
+// ---------------------------------------------------------------------------
+// Arcade score popups (js/ui.js) — pooled floating "+180" / "SHARD" call-outs on
+// trick landings and shard pickups, styled after SSX-era HUD juice. Fixed-size DOM
+// pool, reused/recycled via CSS animation restart — zero per-frame allocation.
+// ---------------------------------------------------------------------------
+const POPUP_N = 10;
+const popupPool = [];
+let popupCursor = 0;
+const popupLayer = document.createElement('div');
+popupLayer.id = 'scorePopups';
+document.querySelector('#hud').appendChild(popupLayer);
+for (let i = 0; i < POPUP_N; i++) {
+  const el = document.createElement('div');
+  el.className = 'scorePopup';
+  popupLayer.appendChild(el);
+  popupPool.push(el);
+}
+
+function spawnPopup(text, xPct, yPct, color) {
+  const el = popupPool[popupCursor];
+  popupCursor = (popupCursor + 1) % POPUP_N;
+  el.textContent = text;
+  el.style.left = xPct + '%';
+  el.style.top = yPct + '%';
+  el.style.color = color;
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+}
+
+function biomeAccent() {
+  const b = window.Game.world && window.Game.world.activeBiome;
+  return b ? '#' + b.accent.toString(16).padStart(6, '0') : '#9ef7e5';
+}
+
+window.GameEvents.on('trick:landed', ({ points }) => {
+  spawnPopup('+' + points, 50 + (Math.random() * 16 - 8), 56, '#ffe0a4');
+});
+window.GameEvents.on('shard:collected', ({ combo }) => {
+  spawnPopup('✦ FLOW ×' + combo, 22 + (Math.random() * 8 - 4), 24, biomeAccent());
+});
+
 window.Game.ui = {
   setScore, setSpeedbar, setZone, setCombo, hideCombo, setMeta,
   setTrick, hideTrick, showOverlay, hideOverlay, setOverlayText, announce, update,
-  showStoryCard, hideStoryCard, setEpilogue
+  showStoryCard, hideStoryCard, setEpilogue, spawnPopup
 };
