@@ -1,0 +1,46 @@
+{
+  "phase": "full-game-overhaul",
+  "completed_at": "2026-07-31T14:00:00+09:00",
+  "workstreams": {
+    "ws0-refactor": {
+      "status": "build-green",
+      "agent_model": "sonnet-5",
+      "handoff_docs_present": ["workstreams/refactor/HANDOFF.md", "workstreams/refactor/BUILD-LOG.md", "workstreams/refactor/VERIFICATION.md"],
+      "notes": "Single-file index.html split into shell + css/style.css + 6 js modules; GameEvents bus + window.Game API; behavior-preserving. Relocated ORCHESTRATION-LOG.md without authorization (orchestrator restored it to root)."
+    },
+    "ws1-storyline": {
+      "status": "build-green",
+      "agent_model": "sonnet-5",
+      "handoff_docs_present": ["workstreams/storyline/HANDOFF.md", "workstreams/storyline/BUILD-LOG.md", "workstreams/storyline/VERIFICATION.md"],
+      "notes": "Rin protagonist, prologue, 3 acts mapped to biomes, zone story cards, rate-limited flavor lines, named tricks, epilogue + run stats, new localStorage key sessionRunnerStory."
+    },
+    "ws2-graphics-vfx": {
+      "status": "build-green",
+      "agent_model": "sonnet-5",
+      "handoff_docs_present": ["workstreams/graphics/HANDOFF.md", "workstreams/graphics/BUILD-LOG.md", "workstreams/graphics/VERIFICATION.md"],
+      "notes": "New js/vfx.js: sky dome, stars, sun glow, aurora ribbons, speed streaks, FOV kick, vignette, shake polish; world.js terrain vertex colors + instanced rocks + per-biome snow; rider.js emissive stripe, springy scarf, board trail, carve tracks. All procedural. Minor: ice-spire glow color fixed at spawn, not live-updated on mid-flight biome change."
+    },
+    "ws3-audio-juice": {
+      "status": "build-green",
+      "agent_model": "sonnet-5",
+      "handoff_docs_present": ["workstreams/audio/HANDOFF.md", "workstreams/audio/BUILD-LOG.md", "workstreams/audio/VERIFICATION.md"],
+      "notes": "Procedural music bed (speed/biome intensity), wind whoosh, 80ms hit-stop + thud, landing squash, biome stingers, UI blips, synth callout voice. Surgical hooks only in core.js/rider.js; blip/crash preserved."
+    }
+  },
+  "orchestrator_reverified": {
+    "syntax_check": "PASS — node --check clean on all 7 js modules",
+    "asset_serving": "PASS — 9/9 assets HTTP 200 on 127.0.0.1:8341",
+    "tell_check": "PASS — zero TODO/FIXME/XXX/placeholder/not-implemented matches in index.html, css/, js/",
+    "integration_audit": "PASS — script order correct (vfx.js after core.js), core.js carries both vfx update hook and hit-stop gate, rider.js carries rider:land emit + VFX upgrades, sessionRunnerStory persisted, legacy localStorage keys intact, biome thresholds 0/120/300 intact, touch controls intact",
+    "browser_runtime_smoke": "PASS — headless Chrome (SwiftShader WebGL): canvas created, renderer running, zero JS errors, menu overlay populated (title/CTA/zone). First attempt with --disable-gpu failed on WebGL context creation (environmental, not a code defect)."
+  },
+  "blockers": [],
+  "known_issues": [
+    "No interactive gameplay input test performed (headless smoke covers boot/render only); manual play recommended before production deploy.",
+    "If WebGL is unavailable in a client browser, vfx.js throws a secondary uncaught TypeError after core.js's primary WebGL failure — cosmetic noise, game is unavailable in that case regardless.",
+    "Ice-spire glow color fixed at spawn time (cosmetic, rare)."
+  ],
+  "recommended_decision": "ship-it",
+  "next_phase_recommendation": "Manual playtest (drop-in, trick, shard, all 3 biome transitions, wipeout, refresh persistence check), then deploy to Vercel. Optional next phase: difficulty curve tuning + a WebGL-unavailable fallback message.",
+  "notes": "All implementation by Sonnet 5 sub-agents; Fable 5 orchestrated and independently re-verified. Scope wall held: no npm, no new CDN deps, no build step, no external assets, no git commands, static SPA preserved."
+}

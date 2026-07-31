@@ -1,8 +1,14 @@
 # Session Runner 3D — Powder Expedition 🏂
 
-A polished single-file **Three.js powder-surf runner**. Ride an endless mountain route, carve around hazards, collect starlight shards to keep your score multiplier alive, and survive worlds that change as your run deepens.
+A full-on single-page **Three.js powder-surf runner** with a storyline, three shifting worlds, trick mechanics, and procedural audio. Built by Hermes Agent orchestrating Claude Code (Fable 5 → Sonnet 5 sub-agents).
 
 **Live:** https://session-runner.vercel.app
+
+## The Story
+
+> *The mountain is going dark. Rin is the last rider left who still knows its lines, and every starlight shard she threads holds a sliver of what the peak used to be. She drops in anyway — carving through changing worlds, chasing whatever light is left to save.*
+
+Play through a 3-act arc mapped to the worlds. Story progress (acts, epilogue, total tricks/shards) persists locally alongside your run stats.
 
 ## Play
 
@@ -13,23 +19,34 @@ A polished single-file **Three.js powder-surf runner**. Ride an endless mountain
 | `Space` | Start / restart after a wipeout |
 | Touch drag | Steer on mobile |
 
-## Expedition systems
+## Systems
 
-- **A real rider:** a stylized back-facing powder surfer with helmet, cyan goggles, puffer jacket, backpack, articulated limbs, animated scarf, boots, and a striped board.
-- **Route shifts per run:** cross the score thresholds to ride through **Twilight Pines**, **Aurora Glacier**, then **Whiteout Storm**. Lighting, fog, snow, terrain, trees, sun, hazards, and accent colors shift with each biome.
-- **Shard flow:** collect rotating starlight shards to extend a timed `FLOW ×N` multiplier (up to ×5), earn score boosts, particles, and a chime.
-- **Airtime & tricks:** press `W` / `↑` to launch, then hold a carve direction in the air to spin. A clean 360 earns +180 style points, raises Flow, and produces a stomp callout; higher rotations stack more points.
-- **Launch pads:** striped, glowing pads spawn down-route and automatically throw a rider higher for longer trick windows. Airborne riders clear rock collisions.
-- **Persistent expedition ranks:** completed runs are saved locally. Every three wipeouts unlocks the next Expedition rank, increasing the starting speed and obstacle pressure for subsequent runs.
-- **Evolving hazards:** rim-lit boulders start the route; advanced biomes introduce ice spires.
-- **Responsive ride feel:** terrain-following board, carve lean, camera follow, sway, snow spray, ambient snowfall, procedural audio, and wipeout screen shake.
+- **Storyline:** prologue, 3 acts (Twilight Pines → Aurora Glacier → Whiteout Storm), zone story cards, named tricks, finale epilogue, run-results screen with story progress.
+- **Rider:** stylized powder surfer with helmet, glowing goggles, springy scarf physics, board glow trail, carve lean.
+- **Shards & Flow:** collect starlight shards for a timed `FLOW ×N` multiplier (up to ×5).
+- **Tricks:** jump (`W`/`↑`), spin in air for Method 360 / Corkscrew 720 / Double 720; landing grants style points + Flow + hit-stop.
+- **Launch pads:** glowing striped pads throw you higher for longer trick windows; airborne riders clear rocks.
+- **Expedition ranks:** completed runs persist; every 3 wipeouts raises baseline speed and route pressure.
+- **Graphics/VFX:** gradient sky dome, stars, sun glow, aurora ribbons, speed streaks, FOV kick, vignette, terrain vertex coloring, per-biome snow, carve tracks.
+- **Audio & juice:** procedural music bed (intensity scales with speed/biome), wind whoosh, trick thuds, biome stingers, UI blips, synth callouts, landing squash.
 
-## Technical notes
+## Architecture
 
-- One `index.html`; no build step or framework
-- Three.js uses a pinned CDN import map (`three@0.160.0`)
-- Local `localStorage` saves personal best and expedition completion count
-- Delta-time-capped render loop prevents tab-switch physics jumps
+Modular vanilla ES modules (no build step):
+
+```
+index.html            shell + HUD + overlay + import map (three@0.160.0)
+css/style.css         UI styling
+js/core.js            state machine, loop, input, physics, scoring, spawns
+js/world.js           terrain, biomes, obstacles, launch pads, shards
+js/rider.js           rider rig, carve, jump/spin tricks, landing
+js/vfx.js             sky dome, aurora, particles, FOV kick, shake
+js/audio.js           procedural WebAudio: music, wind, SFX
+js/ui.js              HUD, overlays, menus, run stats
+js/story.js           narrative: prologue, acts, dialogue, epilogue
+```
+
+Modules communicate via `window.GameEvents` (pub/sub) and expose `window.Game`. Zero dependencies beyond the pinned Three.js CDN import map; procedural assets only; static-deployable anywhere.
 
 ## Run locally
 
@@ -40,8 +57,8 @@ python3 -m http.server 8000
 
 ## Deploy
 
-It is a static site. Import the repository to Vercel using framework preset **Other** and no build command, or deploy directly with `vercel --prod`.
+Static site. Import the repo into Vercel with framework preset **Other**, no build command, or `vercel --prod`.
 
 ---
 
-Built with GPT-5.6 Terra via Hermes Agent. 🤙
+Orchestration audit trail: `ORCHESTRATION-LOG.md`, `STATUS.json`, and `workstreams/` (HANDOFF/BUILD-LOG/VERIFICATION per workstream).
