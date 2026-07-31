@@ -1,8 +1,8 @@
-# Session Runner 🏄
+# Session Runner 3D 🏂
 
-A tiny single-file HTML5 canvas surf dodger. You're a surfer racing down a wave — carve between the rocks, snag glowing wave crests for bonus points, and hold on as the speed ramps. One wipeout ends the session.
+A single-file **Three.js powder-surf runner**. You're a rider carving down an endless snowy ridge at sunset — weave between the rocks, thread the glowing crest rings for bonus points, and hold your line as the speed ramps. One wipeout ends the session.
 
-**Play:** dodge, score, beat your best. That's it. That's the wave.
+**Play:** carve, dodge, beat your best. 🤙
 
 ## Controls
 
@@ -14,13 +14,14 @@ A tiny single-file HTML5 canvas surf dodger. You're a surfer racing down a wave 
 
 ## Features
 
-- Single `index.html` — zero build step, zero dependencies
-- Difficulty ramp: rock density + scroll speed increase with distance
-- Bonus crests: +15 pts and a little chime
-- Procedural Web Audio (blips + wipeout crash), gesture-gated
+- Single `index.html`, zero build — Three.js loaded from CDN (import map, pinned `0.160.0`)
+- **3D scene:** wave-displaced scrolling terrain, low-poly pines, dodecahedron rocks with visibility rims, sun disc + mountain silhouettes, dusk fog + ambient snowfall
+- **Rider physics:** carve lean, terrain-following height, carve snow spray, camera sway + wipeout shake
+- Difficulty ramp: rock density + speed scale with distance
+- Glowing crest rings: +25 pts and a chime
+- Procedural Web Audio (blips + noise crash), gesture-gated
 - High score persisted in `localStorage`
-- Delta-time-capped game loop (no teleporting on tab switch)
-- Screen shake, spray particles, speed meter HUD
+- Delta-time-capped loop (no teleporting on tab switch)
 
 ## Run locally
 
@@ -28,8 +29,6 @@ A tiny single-file HTML5 canvas surf dodger. You're a surfer racing down a wave 
 python3 -m http.server 8000
 # open http://localhost:8000
 ```
-
-Or just open `index.html` — everything is inline.
 
 ## Deploy
 

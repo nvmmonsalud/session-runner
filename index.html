@@ -3,99 +3,265 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Session Runner 🏄</title>
+<title>Session Runner 3D 🏂</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
-    height: 100%;
-    background: #0a1628;
-    overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  html, body { height: 100%; overflow: hidden; background: #1e1440;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  canvas { display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #score {
+    position: absolute; top: 18px; left: 22px;
+    color: rgba(255,255,255,.95); font-size: 34px; font-weight: 800;
+    text-shadow: 0 2px 12px rgba(0,0,0,.4);
   }
-  #wrap {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
+  #best { position: absolute; top: 60px; left: 22px; color: rgba(255,255,255,.55); font-size: 14px; letter-spacing: .06em; }
+  #speedwrap { position: absolute; top: 26px; right: 22px; width: 110px; height: 9px;
+    background: rgba(255,255,255,.18); border-radius: 5px; overflow: hidden; }
+  #speedbar { height: 100%; width: 0%; background: #8fc3ee; border-radius: 5px; transition: width .2s; }
+  #overlay {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px;
+    background: rgba(10,8,32,.55); backdrop-filter: blur(3px);
+    transition: opacity .25s;
   }
-  canvas {
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
-    border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.5);
-    max-width: 96vw;
-    max-height: 82vh;
-    background: linear-gradient(#0e2a4a, #123f66);
-  }
-  #hint {
-    color: #5b7ea6;
-    font-size: 13px;
-    letter-spacing: .04em;
-    text-align: center;
-    padding: 0 16px;
-  }
-  #hint b { color: #8fc3ee; }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  #title { color: #fff; font-size: clamp(34px, 7vw, 58px); font-weight: 900; letter-spacing: .04em;
+    text-shadow: 0 4px 30px rgba(120,80,255,.5); }
+  #sub { color: #b8a8ee; font-size: clamp(14px, 2.5vw, 18px); }
+  #cta { color: #ffd9a0; font-size: clamp(16px, 3vw, 21px); font-weight: 700;
+    animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+  #hint { position: absolute; bottom: 14px; width: 100%; text-align: center;
+    color: rgba(216,200,255,.5); font-size: 13px; letter-spacing: .04em; }
+  #hint b { color: rgba(255,217,160,.85); }
 </style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
 </head>
 <body>
-<div id="wrap">
-  <canvas id="game" width="480" height="640"></canvas>
-  <div id="hint"><b>← →</b> or <b>A/D</b> to carve &nbsp;·&nbsp; <b>Space</b> to start / restart &nbsp;·&nbsp; touch: drag</div>
+<div id="hud">
+  <div id="score">0</div>
+  <div id="best">BEST 0</div>
+  <div id="speedwrap"><div id="speedbar"></div></div>
+  <div id="overlay">
+    <div id="title">SESSION RUNNER 3D</div>
+    <div id="sub">🏂 powder surf — carve the ridge, dodge the rocks</div>
+    <div id="cta">SPACE / TAP to drop in</div>
+  </div>
+  <div id="hint"><b>← →</b> or <b>A/D</b> to carve &nbsp;·&nbsp; <b>Space</b> restart &nbsp;·&nbsp; touch: drag</div>
 </div>
-<script>
-(function(){
-'use strict';
 
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height;
+<script type="module">
+import * as THREE from 'three';
 
-// ---------- State machine ----------
+// ---------- State ----------
 const STATE = { MENU: 0, PLAYING: 1, GAME_OVER: 2 };
 let state = STATE.MENU;
 let hiScore = 0;
-try { hiScore = parseInt(localStorage.getItem('sessionRunnerHi') || '0', 10) || 0; } catch(e) {}
+try { hiScore = parseInt(localStorage.getItem('sessionRunner3dHi') || '0', 10) || 0; } catch(e) {}
 
-// ---------- Input ----------
-const keys = {};
-let touchX = null;
-window.addEventListener('keydown', e => {
-  keys[e.key] = true;
-  if ([' ','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
-  if (e.key === ' ') {
-    if (state === STATE.MENU || state === STATE.GAME_OVER) startGame();
+// ---------- Renderer / Scene ----------
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+} catch(e) {
+  document.getElementById('sub').textContent = 'WebGL not available on this device 😢';
+  throw e;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1e1440);
+scene.fog = new THREE.Fog(0x35215c, 55, 250);
+
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 600);
+camera.position.set(0, 6.5, 11);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ---------- Lights ----------
+scene.add(new THREE.HemisphereLight(0x8a7bd8, 0x3a2a5a, 1.0));
+const sunLight = new THREE.DirectionalLight(0xffb36b, 1.4);
+sunLight.position.set(-70, 30, -80);
+scene.add(sunLight);
+
+// ---------- Sun disc + mountain silhouettes ----------
+const sun = new THREE.Mesh(
+  new THREE.CircleGeometry(18, 32),
+  new THREE.MeshBasicMaterial({ color: 0xffd9a0, fog: false })
+);
+sun.position.set(-70, 26, -285);
+scene.add(sun);
+
+const mtnMat = new THREE.MeshBasicMaterial({ color: 0x241b3d });
+for (let i = 0; i < 9; i++) {
+  const m = new THREE.Mesh(new THREE.ConeGeometry(34 + Math.random() * 42, 30 + Math.random() * 38, 5), mtnMat);
+  m.position.set(-260 + i * 65 + Math.random() * 24, -6, -240 - Math.random() * 30);
+  scene.add(m);
+}
+
+// ---------- Terrain (wave-displaced scrolling plane) ----------
+const TER_W = 110, TER_L = 420;
+const terGeo = new THREE.PlaneGeometry(TER_W, TER_L, 56, 110);
+const terBase = terGeo.attributes.position.array.slice();
+const terrain = new THREE.Mesh(terGeo,
+  new THREE.MeshStandardMaterial({ color: 0xc8d8f2, flatShading: true, roughness: 0.9 }));
+terrain.rotation.x = -Math.PI / 2;
+terrain.position.z = -TER_L / 2 + 40; // spans z: +40 .. -380
+scene.add(terrain);
+
+let dist = 0;
+function groundH(x, worldZ) {
+  const s = worldZ - dist;
+  return 1.6 * Math.sin(s * 0.055) * Math.cos(x * 0.09)
+       + 0.7 * Math.sin(x * 0.21 + s * 0.13)
+       + 0.25 * Math.sin(x * 0.55 + s * 0.31);
+}
+function updateTerrain() {
+  const pos = terGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const lx = terBase[i * 3], ly = terBase[i * 3 + 1];
+    const worldZ = terrain.position.z - ly; // local +y -> world -z
+    pos.setZ(i, groundH(lx, worldZ));
   }
-});
-window.addEventListener('keyup', e => { keys[e.key] = false; });
-canvas.addEventListener('touchstart', e => {
-  e.preventDefault();
-  if (state !== STATE.PLAYING) { startGame(); return; }
-  touchX = e.touches[0].clientX;
-}, { passive: false });
-canvas.addEventListener('touchmove', e => {
-  e.preventDefault();
-  touchX = e.touches[0].clientX;
-}, { passive: false });
-canvas.addEventListener('touchend', e => { e.preventDefault(); touchX = null; }, { passive: false });
-canvas.addEventListener('mousedown', () => {
-  if (state !== STATE.PLAYING) startGame();
-});
+  pos.needsUpdate = true;
+}
 
-// ---------- Audio (procedural, gesture-gated) ----------
+// ---------- Rider ----------
+const rider = new THREE.Group();
+const board = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.12, 2.7),
+  new THREE.MeshStandardMaterial({ color: 0xffb347, flatShading: true }));
+board.position.y = 0.12;
+rider.add(board);
+const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.75, 4, 8),
+  new THREE.MeshStandardMaterial({ color: 0xff6b6b, flatShading: true }));
+body.position.y = 1.05;
+rider.add(body);
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 8, 6),
+  new THREE.MeshStandardMaterial({ color: 0xffe0c0, flatShading: true }));
+head.position.y = 1.85;
+rider.add(head);
+scene.add(rider);
+
+const player = { x: 0, vx: 0 };
+const LANE = 14;
+
+// ---------- Obstacles & scenery & pickups ----------
+const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+const rockMat = new THREE.MeshStandardMaterial({ color: 0xaab4cf, flatShading: true });
+const rockRimMat = new THREE.MeshBasicMaterial({ color: 0xd8e2f8, wireframe: true, transparent: true, opacity: 0.18 });
+const treeMat = new THREE.MeshStandardMaterial({ color: 0x1e4d4a, flatShading: true });
+const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, flatShading: true });
+const crestGeo = new THREE.TorusGeometry(1.6, 0.28, 8, 20);
+const crestMat = new THREE.MeshStandardMaterial({ color: 0x0a2a20, emissive: 0x2affd0, emissiveIntensity: 1.4 });
+
+let obstacles = []; // {mesh, x, z, r, hit}
+let decor = [];     // trees off-lane
+let crests = [];    // {mesh, x, z}
+
+function makeRock() {
+  const m = new THREE.Mesh(rockGeo, rockMat);
+  const s = 0.9 + Math.random() * 1.1;
+  m.scale.set(s, s * (0.8 + Math.random() * 0.4), s);
+  m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+  m.add(new THREE.Mesh(rockGeo, rockRimMat)); // visibility rim
+  return m;
+}
+function makeTree() {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 1.2, 5), trunkMat);
+  trunk.position.y = 0.6;
+  g.add(trunk);
+  const tiers = 2 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < tiers; i++) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(1.5 - i * 0.38, 1.7, 6), treeMat);
+    cone.position.y = 1.5 + i * 1.1;
+    g.add(cone);
+  }
+  const sc = 0.8 + Math.random() * 0.9;
+  g.scale.setScalar(sc);
+  return g;
+}
+function spawnObstacle() {
+  const m = makeRock();
+  const x = (Math.random() * 2 - 1) * LANE;
+  m.position.set(x, 0, -200);
+  scene.add(m);
+  obstacles.push({ mesh: m, x: x, z: -200, r: m.scale.x + 0.4 });
+}
+function spawnDecor(zPos) {
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const x = side * (LANE + 5 + Math.random() * 26);
+  const t = makeTree();
+  t.position.set(x, 0, zPos);
+  scene.add(t);
+  decor.push(t);
+}
+function spawnCrest() {
+  const m = new THREE.Mesh(crestGeo, crestMat);
+  const x = (Math.random() * 2 - 1) * (LANE - 2);
+  m.position.set(x, 2.2, -200);
+  scene.add(m);
+  crests.push({ mesh: m, x: x, z: -200 });
+}
+// pre-fill scenery
+for (let z = 20; z > -200; z -= 7) spawnDecor(z + Math.random() * 5);
+
+// ---------- Snow particles (ambient + spray) ----------
+const SNOW_N = 420;
+const snowPos = new Float32Array(SNOW_N * 3);
+for (let i = 0; i < SNOW_N; i++) {
+  snowPos[i * 3] = (Math.random() * 2 - 1) * 34;
+  snowPos[i * 3 + 1] = Math.random() * 18;
+  snowPos[i * 3 + 2] = -160 * Math.random() + 12;
+}
+const snowGeo = new THREE.BufferGeometry();
+snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+const snow = new THREE.Points(snowGeo,
+  new THREE.PointsMaterial({ color: 0xffffff, size: 0.16, transparent: true, opacity: 0.75 }));
+scene.add(snow);
+
+const SPRAY_N = 260;
+const sprayPos = new Float32Array(SPRAY_N * 3).fill(-999);
+const sprayVel = new Float32Array(SPRAY_N * 3);
+const sprayLife = new Float32Array(SPRAY_N);
+let sprayIdx = 0;
+const sprayGeo = new THREE.BufferGeometry();
+sprayGeo.setAttribute('position', new THREE.BufferAttribute(sprayPos, 3));
+const spray = new THREE.Points(sprayGeo,
+  new THREE.PointsMaterial({ color: 0xeef4ff, size: 0.34, transparent: true, opacity: 0.9 }));
+scene.add(spray);
+function emitSpray(x, y, z, n, spread, up) {
+  for (let i = 0; i < n; i++) {
+    const j = sprayIdx; sprayIdx = (sprayIdx + 1) % SPRAY_N;
+    sprayPos[j * 3] = x + (Math.random() - 0.5) * 0.5;
+    sprayPos[j * 3 + 1] = y;
+    sprayPos[j * 3 + 2] = z + (Math.random() - 0.5) * 0.5;
+    sprayVel[j * 3] = (Math.random() - 0.5) * spread;
+    sprayVel[j * 3 + 1] = Math.random() * up;
+    sprayVel[j * 3 + 2] = 2 + Math.random() * 3;
+    sprayLife[j] = 0.5 + Math.random() * 0.4;
+  }
+}
+
+// ---------- Audio ----------
 let actx = null;
 function initAudio() {
-  if (actx) return;
-  try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} }
+  if (actx && actx.state === 'suspended') actx.resume();
 }
 function blip(freq, dur, type, vol) {
   if (!actx) return;
-  const o = actx.createOscillator();
-  const g = actx.createGain();
-  o.type = type || 'sine';
-  o.frequency.value = freq;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || 'sine'; o.frequency.value = freq;
   g.gain.setValueAtTime(vol || 0.12, actx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + (dur || 0.1));
   o.connect(g); g.connect(actx.destination);
@@ -103,274 +269,209 @@ function blip(freq, dur, type, vol) {
 }
 function crash() {
   if (!actx) return;
-  const len = actx.sampleRate * 0.35;
+  const len = Math.floor(actx.sampleRate * 0.4);
   const buf = actx.createBuffer(1, len, actx.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-  const src = actx.createBufferSource();
-  const g = actx.createGain();
-  g.gain.setValueAtTime(0.25, actx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.35);
-  src.buffer = buf;
-  src.connect(g); g.connect(actx.destination);
-  src.start();
+  const src = actx.createBufferSource(), g = actx.createGain();
+  g.gain.setValueAtTime(0.3, actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.4);
+  src.buffer = buf; src.connect(g); g.connect(actx.destination); src.start();
 }
 
-// ---------- Game objects ----------
-const player = { x: W / 2, y: H - 110, w: 26, h: 40, vx: 0 };
-let obstacles = [];   // rocks
-let crests = [];      // bonus wave crests
-let particles = [];
-let score = 0;
-let speed = 4;
-let dist = 0;
-let shake = 0;
-let frame = 0;
+// ---------- Input ----------
+const keys = {};
+let touchX = null;
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if ([' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
+  if (e.key === ' ' && state !== STATE.PLAYING) startGame();
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+window.addEventListener('touchstart', e => {
+  if (state !== STATE.PLAYING) { startGame(); return; }
+  touchX = e.touches[0].clientX;
+}, { passive: true });
+window.addEventListener('touchmove', e => {
+  touchX = e.touches[0].clientX;
+  e.preventDefault();
+}, { passive: false });
+window.addEventListener('touchend', () => { touchX = null; });
+window.addEventListener('mousedown', () => { if (state !== STATE.PLAYING) startGame(); });
+
+// ---------- HUD ----------
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const speedEl = document.getElementById('speedbar');
+const overlay = document.getElementById('overlay');
+const titleEl = document.getElementById('title');
+const subEl = document.getElementById('sub');
+const ctaEl = document.getElementById('cta');
+bestEl.textContent = 'BEST ' + hiScore;
+
+// ---------- Game control ----------
+let speed = 16, score = 0, spawnT = 0, crestT = 3, shake = 0, frame = 0;
 
 function startGame() {
   initAudio();
+  for (const o of obstacles) scene.remove(o.mesh);
+  for (const c of crests) scene.remove(c.mesh);
+  obstacles = []; crests = [];
+  dist = 0; score = 0; speed = 16; spawnT = 0.8; crestT = 2.5; shake = 0;
+  player.x = 0; player.vx = 0;
   state = STATE.PLAYING;
-  obstacles = [];
-  crests = [];
-  particles = [];
-  score = 0;
-  speed = 4;
-  dist = 0;
-  shake = 0;
-  player.x = W / 2;
-  player.vx = 0;
+  overlay.classList.add('hidden');
   blip(440, 0.15, 'triangle', 0.15);
   setTimeout(() => blip(660, 0.2, 'triangle', 0.15), 120);
 }
 
-function spawnObstacle() {
-  const r = 14 + Math.random() * 26;
-  obstacles.push({ x: r + Math.random() * (W - r * 2), y: -r * 2, r: r });
-}
-function spawnCrest() {
-  crests.push({ x: 30 + Math.random() * (W - 60), y: -20, r: 12 });
-}
-function spawnSpray(x, y, n, color) {
-  for (let i = 0; i < n; i++) {
-    particles.push({
-      x: x, y: y,
-      vx: (Math.random() - 0.5) * 5,
-      vy: -Math.random() * 4 - 1,
-      life: 30 + Math.random() * 20,
-      color: color || 'rgba(180,220,255,'
-    });
+function wipeout() {
+  state = STATE.GAME_OVER;
+  crash();
+  shake = 1.0;
+  emitSpray(player.x, 0.8, 0, 90, 9, 6);
+  if (score > hiScore) {
+    hiScore = score;
+    try { localStorage.setItem('sessionRunner3dHi', String(hiScore)); } catch(e) {}
   }
+  titleEl.textContent = 'WIPEOUT!';
+  subEl.textContent = 'score ' + score + (score >= hiScore && score > 0 ? ' — NEW BEST! 🌊' : ' · best ' + hiScore);
+  ctaEl.textContent = 'SPACE / TAP to drop back in';
+  overlay.classList.remove('hidden');
+  bestEl.textContent = 'BEST ' + hiScore;
 }
 
 // ---------- Update ----------
 function update(dt) {
-  if (state !== STATE.PLAYING) return;
   frame++;
 
-  // ramp difficulty
-  dist += speed * dt;
-  score = Math.floor(dist / 10);
-  speed = Math.min(4 + dist / 1200, 11);
-
-  // player movement
-  const accel = 0.9;
-  if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.vx -= accel;
-  if (keys['ArrowRight'] || keys['d'] || keys['D']) player.vx += accel;
-  if (touchX !== null) {
-    const rect = canvas.getBoundingClientRect();
-    const tx = (touchX - rect.left) * (W / rect.width);
-    player.vx += (tx - player.x) * 0.04;
+  // ambient snowfall always drifts
+  for (let i = 0; i < SNOW_N; i++) {
+    snowPos[i * 3 + 2] += (state === STATE.PLAYING ? speed * 0.85 : 4) * dt;
+    snowPos[i * 3 + 1] -= dt * 1.2;
+    if (snowPos[i * 3 + 2] > 12 || snowPos[i * 3 + 1] < 0) {
+      snowPos[i * 3] = (Math.random() * 2 - 1) * 34;
+      snowPos[i * 3 + 1] = 6 + Math.random() * 12;
+      snowPos[i * 3 + 2] = -150 - Math.random() * 10;
+    }
   }
-  player.vx *= 0.86; // friction
-  player.x += player.vx * dt;
-  player.x = Math.max(player.w / 2, Math.min(W - player.w / 2, player.x));
+  snowGeo.attributes.position.needsUpdate = true;
 
-  // spray trail
-  if (frame % 3 === 0) spawnSpray(player.x, player.y + player.h / 2, 2);
+  // spray particles
+  for (let j = 0; j < SPRAY_N; j++) {
+    if (sprayLife[j] <= 0) continue;
+    sprayLife[j] -= dt;
+    sprayVel[j * 3 + 1] -= 9 * dt;
+    sprayPos[j * 3] += sprayVel[j * 3] * dt;
+    sprayPos[j * 3 + 1] += sprayVel[j * 3 + 1] * dt;
+    sprayPos[j * 3 + 2] += sprayVel[j * 3 + 2] * dt;
+    if (sprayLife[j] <= 0) sprayPos[j * 3 + 1] = -999;
+  }
+  sprayGeo.attributes.position.needsUpdate = true;
+
+  if (state !== STATE.PLAYING) return;
+
+  dist += speed * dt;
+  score = Math.floor(dist * 0.5);
+  speed = Math.min(16 + dist / 90, 44);
+  updateTerrain();
+
+  // carve physics
+  const accel = 42;
+  if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.vx -= accel * dt;
+  if (keys['ArrowRight'] || keys['d'] || keys['D']) player.vx += accel * dt;
+  if (touchX !== null) {
+    const tx = (touchX / window.innerWidth * 2 - 1) * LANE * 1.4;
+    player.vx += (tx - player.x) * 3.2 * dt;
+  }
+  player.vx *= Math.pow(0.12, dt); // friction
+  player.vx = Math.max(-26, Math.min(26, player.vx));
+  player.x += player.vx * dt;
+  player.x = Math.max(-LANE, Math.min(LANE, player.x));
+
+  // rider follows terrain + leans
+  const ry = groundH(player.x, 0);
+  rider.position.set(player.x, ry, 0);
+  rider.rotation.z = -player.vx * 0.045;
+  rider.rotation.x = Math.cos(groundH(player.x, -2) - groundH(player.x, 2)) * 0.06;
+  board.rotation.y = -player.vx * 0.03;
+
+  // carve spray
+  if (Math.abs(player.vx) > 4 && frame % 2 === 0) {
+    emitSpray(player.x - Math.sign(player.vx) * 0.5, ry + 0.15, 1.2, 2, 2.5, 1.6);
+  }
 
   // spawns
-  const rockGap = Math.max(34 - Math.floor(dist / 600), 14);
-  if (frame % rockGap === 0) spawnObstacle();
-  if (frame % 180 === 0) spawnCrest();
+  spawnT -= dt;
+  if (spawnT <= 0) {
+    spawnObstacle();
+    spawnT = Math.max(1.05 - dist / 2600, 0.34) * (0.75 + Math.random() * 0.5);
+  }
+  crestT -= dt;
+  if (crestT <= 0) { spawnCrest(); crestT = 3.5 + Math.random() * 3.5; }
+  if (frame % 5 === 0) spawnDecor(-205);
 
-  // move + cull obstacles
+  // move world objects toward camera
+  const dz = speed * dt;
   for (let i = obstacles.length - 1; i >= 0; i--) {
-    obstacles[i].y += speed * dt;
-    if (obstacles[i].y > H + 60) obstacles.splice(i, 1);
+    const o = obstacles[i];
+    o.z += dz;
+    o.mesh.position.z = o.z;
+    o.mesh.position.y = groundH(o.x, o.z) + o.mesh.scale.y * 0.5;
+    if (o.z > 16) { scene.remove(o.mesh); obstacles.splice(i, 1); continue; }
+    // collision (only near rider plane)
+    if (Math.abs(o.z) < 1.6 && Math.abs(o.x - player.x) < o.r + 0.55) { wipeout(); return; }
   }
-  for (let i = crests.length - 1; i >= 0; i--) {
-    crests[i].y += speed * dt;
-    if (crests[i].y > H + 30) crests.splice(i, 1);
-  }
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.15 * dt; p.life -= dt;
-    if (p.life <= 0) particles.splice(i, 1);
-  }
-
-  // collisions: rocks
-  for (const o of obstacles) {
-    const dx = o.x - player.x, dy = o.y - player.y;
-    if (Math.abs(dx) < o.r + player.w / 2 - 4 && Math.abs(dy) < o.r + player.h / 2 - 4) {
-      state = STATE.GAME_OVER;
-      crash();
-      shake = 18;
-      spawnSpray(player.x, player.y, 40, 'rgba(255,255,255,');
-      if (score > hiScore) {
-        hiScore = score;
-        try { localStorage.setItem('sessionRunnerHi', String(hiScore)); } catch(e) {}
-      }
-      return;
-    }
-  }
-  // collisions: crests (bonus)
   for (let i = crests.length - 1; i >= 0; i--) {
     const c = crests[i];
-    const dx = c.x - player.x, dy = c.y - player.y;
-    if (Math.hypot(dx, dy) < c.r + 22) {
-      crests.splice(i, 1);
-      dist += 150; // +15 points
+    c.z += dz;
+    c.mesh.position.z = c.z;
+    c.mesh.position.y = groundH(c.x, c.z) + 2.1;
+    c.mesh.rotation.y += dt * 2.2;
+    if (c.z > 16) { scene.remove(c.mesh); crests.splice(i, 1); continue; }
+    if (Math.abs(c.z) < 2.2 && Math.abs(c.x - player.x) < 2.2) {
+      scene.remove(c.mesh); crests.splice(i, 1);
+      dist += 50; // +25 pts
       blip(880, 0.12, 'sine', 0.18);
       setTimeout(() => blip(1320, 0.15, 'sine', 0.14), 60);
-      spawnSpray(c.x, c.y, 16, 'rgba(120,255,220,');
+      emitSpray(c.x, groundH(c.x, 0) + 1.6, 0, 26, 5, 4);
     }
   }
-
-  if (shake > 0) shake -= dt;
-}
-
-// ---------- Render ----------
-function drawBackground() {
-  // water stripes scrolling
-  ctx.fillStyle = '#10355c';
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(70,140,200,0.16)';
-  const off = (dist * 0.6) % 80;
-  for (let y = -80 + off; y < H + 80; y += 80) {
-    ctx.beginPath();
-    for (let x = 0; x <= W; x += 20) {
-      const yy = y + Math.sin((x + frame * 2) * 0.02) * 8;
-      x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
-    }
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(90,170,230,0.22)';
-    ctx.stroke();
+  for (let i = decor.length - 1; i >= 0; i--) {
+    const t = decor[i];
+    t.position.z += dz;
+    t.position.y = groundH(t.position.x, t.position.z) - 0.2;
+    if (t.position.z > 20) { scene.remove(t); decor.splice(i, 1); }
   }
-}
 
-function render() {
-  ctx.save();
+  // camera follow + carve sway + shake
+  const camTX = player.x * 0.55;
+  camera.position.x += (camTX - camera.position.x) * Math.min(dt * 5, 1);
+  camera.position.y = 6.5 + ry * 0.6;
+  camera.rotation.z = -player.vx * 0.008;
   if (shake > 0) {
-    ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    shake -= dt;
+    camera.position.x += (Math.random() - 0.5) * shake * 1.4;
+    camera.position.y += (Math.random() - 0.5) * shake * 1.4;
   }
-  drawBackground();
-
-  // particles
-  for (const p of particles) {
-    ctx.fillStyle = p.color + Math.max(p.life / 50, 0) + ')';
-    ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
-  }
-
-  // crests (glowing teal circles)
-  for (const c of crests) {
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, c.r + Math.sin(frame * 0.15) * 2, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(90,255,210,0.9)';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, c.r + 6, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(90,255,210,0.35)';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-  }
-
-  // rocks
-  for (const o of obstacles) {
-    ctx.beginPath();
-    ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
-    ctx.fillStyle = '#3d3d4d';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(o.x - o.r * 0.3, o.y - o.r * 0.3, o.r * 0.55, 0, Math.PI * 2);
-    ctx.fillStyle = '#55556a';
-    ctx.fill();
-  }
-
-  // player: board + surfer
-  if (state !== STATE.GAME_OVER) {
-    const tilt = player.vx * 0.06;
-    ctx.save();
-    ctx.translate(player.x, player.y);
-    ctx.rotate(tilt);
-    // board
-    ctx.beginPath();
-    ctx.ellipse(0, 6, 9, 26, 0, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffb347';
-    ctx.fill();
-    ctx.strokeStyle = '#e08a1e';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // surfer body
-    ctx.beginPath();
-    ctx.arc(0, -8, 8, 0, Math.PI * 2);
-    ctx.fillStyle = '#ff6b6b';
-    ctx.fill();
-    ctx.restore();
-  }
+  camera.lookAt(player.x * 0.8, 1.5 + ry * 0.5, -8);
 
   // HUD
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  ctx.font = 'bold 26px -apple-system, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(String(score), 18, 38);
-  ctx.font = '13px -apple-system, sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.fillText('BEST ' + hiScore, 18, 58);
-
-  // speed meter
-  const pct = (speed - 4) / 7;
-  ctx.fillStyle = 'rgba(255,255,255,0.2)';
-  ctx.fillRect(W - 118, 24, 100, 8);
-  ctx.fillStyle = pct > 0.7 ? '#ff6b6b' : '#8fc3ee';
-  ctx.fillRect(W - 118, 24, 100 * pct, 8);
-
-  ctx.restore();
-
-  // overlays
-  if (state === STATE.MENU) {
-    overlay('SESSION RUNNER', '🏄 dodge the rocks · snag the crests', 'SPACE / TAP to drop in');
-  } else if (state === STATE.GAME_OVER) {
-    overlay('WIPEOUT!', 'score ' + score + (score >= hiScore && score > 0 ? ' — NEW BEST! 🌊' : ' · best ' + hiScore), 'SPACE / TAP to paddle back out');
-  }
-}
-
-function overlay(title, sub, cta) {
-  ctx.fillStyle = 'rgba(6,18,36,0.72)';
-  ctx.fillRect(0, 0, W, H);
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 40px -apple-system, sans-serif';
-  ctx.fillText(title, W / 2, H / 2 - 50);
-  ctx.fillStyle = '#8fc3ee';
-  ctx.font = '16px -apple-system, sans-serif';
-  ctx.fillText(sub, W / 2, H / 2 - 12);
-  ctx.fillStyle = 'rgba(255,255,255,' + (0.55 + Math.sin(Date.now() * 0.005) * 0.35) + ')';
-  ctx.font = 'bold 18px -apple-system, sans-serif';
-  ctx.fillText(cta, W / 2, H / 2 + 40);
+  scoreEl.textContent = String(score);
+  speedEl.style.width = String(Math.round((speed - 16) / 28 * 100)) + '%';
+  speedEl.style.background = speed > 36 ? '#ff6b6b' : '#8fc3ee';
 }
 
 // ---------- Loop (dt-capped) ----------
-let last = performance.now();
-function loop(now) {
-  let dt = (now - last) / 16.667; // normalized to 60fps units
-  last = now;
-  if (dt > 3) dt = 3; // cap so tab-switch doesn't teleport
+const clock = new THREE.Clock();
+function loop() {
+  const dt = Math.min(clock.getDelta(), 0.05);
   update(dt);
-  render();
+  renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
+updateTerrain();
 requestAnimationFrame(loop);
-})();
 </script>
 </body>
 </html>
