@@ -7,7 +7,7 @@ import * as THREE from 'three';
 
 window.Game = window.Game || {};
 
-const STATE = { MENU: 0, PLAYING: 1, GAME_OVER: 2 };
+const STATE = { MENU: 0, PLAYING: 1, GAME_OVER: 2, PAUSED: 3 };
 const LANE = 14;
 
 let hiScore = 0, completedRuns = 0;
@@ -53,17 +53,31 @@ window.Game.ui.setOverlayText(window.Game.story.intro);
 addEventListener('keydown', e => {
   st.keys[e.key] = true;
   if ([' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'w', 'W'].includes(e.key)) e.preventDefault();
-  if (e.key === ' ' && st.state !== STATE.PLAYING) startGame();
+  if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+    if (st.state === STATE.PLAYING || st.state === STATE.PAUSED) togglePause();
+    return;
+  }
+  if (e.key === ' ') {
+    if (st.state === STATE.PAUSED) togglePause();
+    else if (st.state !== STATE.PLAYING) startGame();
+  }
   if ((e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') && st.state === STATE.PLAYING) window.Game.rider.startJump(false);
 });
 addEventListener('keyup', e => st.keys[e.key] = false);
 addEventListener('touchstart', e => {
+  if (st.state === STATE.PAUSED) { togglePause(); return; }
   if (st.state !== STATE.PLAYING) { startGame(); return; }
   st.touchX = e.touches[0].clientX;
 }, { passive: true });
 addEventListener('touchmove', e => { st.touchX = e.touches[0].clientX; e.preventDefault(); }, { passive: false });
 addEventListener('touchend', () => st.touchX = null);
-addEventListener('mousedown', () => { if (st.state !== STATE.PLAYING) startGame(); });
+addEventListener('mousedown', () => {
+  if (st.state === STATE.PAUSED) { togglePause(); return; }
+  if (st.state !== STATE.PLAYING) startGame();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && st.state === STATE.PLAYING) togglePause();
+});
 
 function updateMeta() {
   const m = window.Game.story.metaText(st.hiScore, st.expedition, st.completedRuns);
@@ -97,6 +111,25 @@ function startGame() {
   window.GameEvents.emit('game:start', {});
 }
 
+function togglePause() {
+  if (st.state === STATE.PLAYING) {
+    st.state = STATE.PAUSED;
+    window.Game.ui.setOverlayText({
+      eyebrow: 'PAUSED',
+      title: 'Paused',
+      sub: 'Take a breather — the mountain will wait.',
+      cta: 'P / Esc / Space to resume'
+    });
+    window.Game.ui.showOverlay();
+    window.GameEvents.emit('game:pause', {});
+  } else if (st.state === STATE.PAUSED) {
+    st.state = STATE.PLAYING;
+    st.safeTimer = Math.max(st.safeTimer, .6);
+    window.Game.ui.hideOverlay();
+    window.GameEvents.emit('game:resume', {});
+  }
+}
+
 function wipeout() {
   st.state = STATE.GAME_OVER;
   const previousExpedition = st.expedition;
@@ -127,7 +160,7 @@ function update(dt) {
   st.frame++;
   window.Game.world.updateSnow(dt, st.state === STATE.PLAYING, st.speed);
   window.Game.world.updateSpray(dt);
-  window.Game.ui.update(dt);
+  if (st.state !== STATE.PAUSED) window.Game.ui.update(dt);
   window.Game.vfx?.update(dt);
   if (st.state !== STATE.PLAYING) return;
 
@@ -258,4 +291,4 @@ function loop() {
 }
 requestAnimationFrame(loop);
 
-window.Game.core = { STATE, LANE, startGame, wipeout, updateMeta, getScene: () => scene, getCamera: () => camera, getRenderer: () => renderer };
+window.Game.core = { STATE, LANE, startGame, wipeout, togglePause, updateMeta, getScene: () => scene, getCamera: () => camera, getRenderer: () => renderer };
