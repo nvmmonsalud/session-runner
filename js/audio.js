@@ -510,6 +510,14 @@ window.GameEvents.on('rider:land', () => {
   juice.squash();
 });
 
+window.GameEvents.on('game:pause', () => {
+  if (actx?.state === 'running') actx.suspend();
+});
+
+window.GameEvents.on('game:resume', () => {
+  if (actx?.state === 'suspended') actx.resume();
+});
+
 // ---------------------------------------------------------------------------------------------
 
 window.Game.audio = {

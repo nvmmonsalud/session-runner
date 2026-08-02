@@ -147,6 +147,31 @@ window.GameEvents.on('shard:collected', ({ combo }) => {
   spawnPopup('✦ FLOW ×' + combo, 22 + (Math.random() * 8 - 4), 24, biomeAccent());
 });
 
+// ---------------------------------------------------------------------------
+// Pause control (js/ui.js) — small JS-created HUD button, visible only while
+// PLAYING. Stops propagation on touch/mouse so it never drives the global
+// touch-steer / restart listeners owned by js/core.js.
+// ---------------------------------------------------------------------------
+const pauseBtn = document.createElement('button');
+pauseBtn.id = 'pauseBtn';
+pauseBtn.type = 'button';
+pauseBtn.setAttribute('aria-label', 'Pause');
+pauseBtn.textContent = '❚❚';
+document.querySelector('#hud').appendChild(pauseBtn);
+
+pauseBtn.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+pauseBtn.addEventListener('mousedown', e => e.stopPropagation());
+pauseBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  e.preventDefault();
+  window.Game.core.togglePause();
+});
+
+window.GameEvents.on('game:start', () => pauseBtn.classList.add('show'));
+window.GameEvents.on('game:pause', () => pauseBtn.classList.remove('show'));
+window.GameEvents.on('game:resume', () => pauseBtn.classList.add('show'));
+window.GameEvents.on('game:over', () => pauseBtn.classList.remove('show'));
+
 window.Game.ui = {
   setScore, setSpeedbar, setZone, setCombo, hideCombo, setMeta,
   setTrick, hideTrick, showOverlay, hideOverlay, setOverlayText, announce, update,

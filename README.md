@@ -17,6 +17,7 @@ Play through a 3-act arc mapped to the worlds. Story progress (acts, epilogue, t
 | `←` / `→` or `A` / `D` | Carve on snow; spin while airborne |
 | `↑` or `W` | Jump / start a trick |
 | `Space` | Start / restart after a wipeout |
+| `P` or `Esc` | Pause / resume |
 | Touch drag | Steer on mobile |
 
 ## Systems
